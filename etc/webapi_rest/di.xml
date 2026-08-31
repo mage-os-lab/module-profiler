@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Copyright © Mage-OS. All rights reserved.
+ * See LICENSE.txt / LICENSE_AFL.txt for license details.
+ */
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
+
+    <!-- Declared on the interface: covers the synchronous, async, bulk and schema processors. -->
+    <type name="Magento\Webapi\Controller\Rest\RequestProcessorInterface">
+        <plugin name="mageos_profiler_webapi_request" type="MageOS\Profiler\Plugin\Webapi\RequestProcessorProfiler" sortOrder="10"/>
+    </type>
+
+    <type name="Magento\Framework\Webapi\ServiceOutputProcessor">
+        <plugin name="mageos_profiler_webapi_output" type="MageOS\Profiler\Plugin\Webapi\OutputProcessorProfiler" sortOrder="10"/>
+    </type>
+
+</config>

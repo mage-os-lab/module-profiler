@@ -1,0 +1,62 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Copyright © Mage-OS. All rights reserved.
+ * See LICENSE.txt / LICENSE_AFL.txt for license details.
+ */
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Config:etc/system_file.xsd">
+    <system>
+        <!--
+            A group inside core's existing `dev` section (declared by Magento_Backend), not a section
+            or tab of its own: the profiler belongs next to the other developer tools, and the group
+            inherits the section's Magento_Config::dev ACL resource, so no acl.xml is needed.
+
+            Magento_Backend marks the whole `dev` section HIDDEN in production mode
+            (Magento\Config\Model\Config\Structure\ElementVisibility\ConcealInProduction), so these
+            fields are not reachable from the production admin. Every one of them has an environment
+            variable override that still works there, and `bin/magento config:set dev/profiler/...`
+            does too - the field comments name the variable.
+        -->
+        <section id="dev">
+            <group id="profiler" translate="label" type="text" sortOrder="150" showInDefault="1" showInWebsite="1" showInStore="1">
+                <label>Profiler Settings</label>
+                <field id="enabled" translate="label comment" type="select" sortOrder="10" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Write Output</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <comment><![CDATA[Kill switch for writing the report. This does <strong>not</strong> activate the profiler &mdash; activation happens during bootstrap, before this config is readable. Use <code>MAGE_PROFILER=tabular</code> (env var / cookie) or <code>bin/magento dev:profiler:enable tabular</code>. Hidden in production mode, where <code>bin/magento config:set dev/profiler/enabled</code> still applies.]]></comment>
+                </field>
+                <field id="log_path" translate="label comment" type="text" sortOrder="20" showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Log File Path</label>
+                    <comment><![CDATA[Always confined to <code>var/log/</code> and always written with a <code>.log</code> extension &mdash; anything outside is folded back in, so the report can never land in a web-served or executable location. Default: <code>var/log/profiler_tabular.log</code>. Overridden by the <code>MAGE_PROFILER_LOG</code> env var, which is also how to set this in production mode.]]></comment>
+                    <depends>
+                        <field id="enabled">1</field>
+                    </depends>
+                </field>
+                <field id="min_time_ms" translate="label comment" type="text" sortOrder="30" showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Minimum Timer Duration (ms)</label>
+                    <validate>validate-number validate-zero-or-greater</validate>
+                    <comment><![CDATA[Hide timers faster than this. <code>0</code> shows every timer. Overridden by <code>MAGE_PROFILER_MIN_MS</code>, which is also how to set this in production mode.]]></comment>
+                    <depends>
+                        <field id="enabled">1</field>
+                    </depends>
+                </field>
+                <field id="filter_pattern" translate="label comment" type="text" sortOrder="40" showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Timer Id Filter (PCRE)</label>
+                    <comment><![CDATA[Optional PCRE applied to timer ids, e.g. <code>/webapi|OBSERVER/</code>. Overridden by <code>MAGE_PROFILER_FILTER</code>, which is also how to set this in production mode.]]></comment>
+                    <depends>
+                        <field id="enabled">1</field>
+                    </depends>
+                </field>
+                <field id="cli_stderr" translate="label comment" type="select" sortOrder="50" showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Print To STDERR On CLI</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <comment><![CDATA[Also print the table to the terminal after a <code>bin/magento</code> command. Overridden by <code>MAGE_PROFILER_CLI_STDERR</code>, which is also how to set this in production mode.]]></comment>
+                    <depends>
+                        <field id="enabled">1</field>
+                    </depends>
+                </field>
+            </group>
+        </section>
+    </system>
+</config>

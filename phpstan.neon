@@ -1,0 +1,37 @@
+#
+# Static analysis config for MageOS_Profiler.
+#
+# Standalone, from this package's root (this is what CI runs):
+#   composer update && vendor/bin/phpstan analyse
+#
+# bitexpert/phpstan-magento is what makes it viable without a Magento install: without it every
+# reference to an auto-generated *Factory is an unknown class.
+#
+includes:
+    - vendor/bitexpert/phpstan-magento/extension.neon
+
+parameters:
+    level: 8
+    paths:
+        - bootstrap.php
+        - registration.php
+        - Console
+        - Model
+        - Plugin
+        - Util
+    treatPhpDocTypesAsCertain: false
+    excludePaths:
+        analyse:
+            # PHPStan reads phpredis from bundled stubs older than the extension actually installed:
+            # they declare mget() returning `Redis|array` where phpredis 6.3 returns
+            # `Redis|array|false`. Matching the real extension is mandatory - narrowing the return type
+            # would turn a soft `false` on a lost connection into a TypeError - and PHP itself accepts
+            # the class, which it would refuse outright on a real covariance violation. PHPStan marks
+            # signature errors as unignorable, so the file has to be excluded rather than silenced.
+            # Nothing is lost: every method here is a one-line delegation to parent::, and the logic
+            # that decides anything lives in ProfiledRedisInstaller, which is still analysed.
+            - Model/Cache/ProfiledRedis.php
+    ignoreErrors:
+        # BP is defined by app/autoload.php at runtime, which is not part of the analysed set.
+        # Every use of it in this module is already guarded by defined('BP').
+        - '#Constant BP not found#'

@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+         failOnEmptyTestSuite="true"
+         cacheDirectory=".phpunit.cache">
+    <testsuites>
+        <!--
+            The reusable CI workflow points Magento's own unit runner at
+            vendor/<package>/Test/Unit, which is where this sits.
+        -->
+        <testsuite name="Unit">
+            <directory>Test/Unit</directory>
+        </testsuite>
+    </testsuites>
+</phpunit>

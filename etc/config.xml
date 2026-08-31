@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Copyright © Mage-OS. All rights reserved.
+ * See LICENSE.txt / LICENSE_AFL.txt for license details.
+ */
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Store:etc/config.xsd">
+    <default>
+        <dev>
+            <profiler>
+                <enabled>1</enabled>
+                <log_path>var/log/profiler_tabular.log</log_path>
+                <min_time_ms>0</min_time_ms>
+                <filter_pattern/>
+                <cli_stderr>1</cli_stderr>
+            </profiler>
+        </dev>
+    </default>
+</config>

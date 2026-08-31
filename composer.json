@@ -1,0 +1,62 @@
+{
+    "name": "mage-os/module-profiler",
+    "description": "Profiler output types and application instrumentation for Mage-OS: a tabular report for CLI, REST, GraphQL and web requests, a JSON timeline driver, and per-seam timers for SQL, cache, Redis, search, HTTP, checkout, cron, indexers and queues.",
+    "type": "magento2-module",
+    "license": [
+        "OSL-3.0",
+        "AFL-3.0"
+    ],
+    "authors": [
+        {
+            "name": "Raj KB",
+            "email": "magepsycho@gmail.com",
+            "homepage": "https://www.magepsycho.com/"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/mage-os-lab/module-profiler/issues",
+        "source": "https://github.com/mage-os-lab/module-profiler"
+    },
+    "repositories": {
+        "mage-os-mirror": {
+            "type": "composer",
+            "url": "https://mirror.mage-os.org/"
+        },
+        "mage-os": {
+            "type": "composer",
+            "url": "https://repo.mage-os.org/"
+        }
+    },
+    "require": {
+        "php": "^8.2",
+        "magento/framework": "^103.0 || ^104.0",
+        "magento/module-config": "^101.2 || ^102.0",
+        "magento/module-developer": "^100.4",
+        "magento/module-store": "^101.1 || ^102.0"
+    },
+    "require-dev": {
+        "bitexpert/phpstan-magento": "^0.43",
+        "magento/magento-coding-standard": "*",
+        "phpstan/phpstan": "^2.0",
+        "phpunit/phpunit": "^10.5"
+    },
+    "autoload": {
+        "files": [
+            "registration.php"
+        ],
+        "psr-4": {
+            "MageOS\\Profiler\\": ""
+        },
+        "exclude-from-classmap": [
+            "registration.php",
+            "Test/"
+        ]
+    },
+    "config": {
+        "allow-plugins": {
+            "dealerdirect/phpcodesniffer-composer-installer": true,
+            "magento/composer-dependency-version-audit-plugin": true,
+            "magento/composer-root-update-plugin": true
+        }
+    }
+}

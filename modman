@@ -1,0 +1,14 @@
+# Module code lives at the package root, so each entry is mapped individually - a single
+# whole-repo mapping would drag .git/, .github/, docs/ and the tooling configs into app/code.
+registration.php    app/code/MageOS/Profiler/registration.php
+bootstrap.php       app/code/MageOS/Profiler/bootstrap.php
+composer.json       app/code/MageOS/Profiler/composer.json
+LICENSE.txt         app/code/MageOS/Profiler/LICENSE.txt
+LICENSE_AFL.txt     app/code/MageOS/Profiler/LICENSE_AFL.txt
+Console/            app/code/MageOS/Profiler/Console/
+etc/                app/code/MageOS/Profiler/etc/
+i18n/               app/code/MageOS/Profiler/i18n/
+Model/              app/code/MageOS/Profiler/Model/
+Plugin/             app/code/MageOS/Profiler/Plugin/
+Util/               app/code/MageOS/Profiler/Util/
+Test/               app/code/MageOS/Profiler/Test/

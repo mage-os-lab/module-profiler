@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<ruleset name="MageOS_Profiler">
+    <description>Magento 2 coding standard, applied to this module's runtime code.</description>
+
+    <file>bootstrap.php</file>
+    <file>registration.php</file>
+    <file>Console</file>
+    <file>Model</file>
+    <file>Plugin</file>
+    <file>Util</file>
+
+    <arg name="extensions" value="php,phtml"/>
+    <arg value="sp"/>
+
+    <rule ref="Magento2"/>
+</ruleset>

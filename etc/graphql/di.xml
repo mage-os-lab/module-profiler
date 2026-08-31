@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Copyright © Mage-OS. All rights reserved.
+ * See LICENSE.txt / LICENSE_AFL.txt for license details.
+ */
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
+
+    <!-- Declared on the interface: every resolver in every module, without naming any of them. -->
+    <type name="Magento\Framework\GraphQl\Query\ResolverInterface">
+        <plugin name="mageos_profiler_graphql_resolver" type="MageOS\Profiler\Plugin\GraphQl\ResolverProfiler" sortOrder="10"/>
+    </type>
+
+    <type name="Magento\Framework\GraphQl\Query\QueryProcessor">
+        <plugin name="mageos_profiler_graphql_query" type="MageOS\Profiler\Plugin\GraphQl\QueryProcessorProfiler" sortOrder="10"/>
+    </type>
+
+</config>

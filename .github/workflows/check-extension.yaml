@@ -1,0 +1,59 @@
+name: Check Extension
+
+on:
+  push:
+    branches: [main]
+  # Every pull request, not only those targeting main: a PR stacked on another
+  # feature branch is exactly the change most worth checking, and filtering on
+  # the base branch silently gives it no CI at all.
+  pull_request:
+
+jobs:
+  compute-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.supported.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: graycoreio/github-actions-magento2/supported-version@v8.9.0
+        id: supported
+        with:
+          project: mage-os
+
+  # The reusable workflow below has no static-analysis job, so this runs one. It installs the
+  # module standalone rather than inside a Magento project, because phpstan only needs the
+  # framework classes on the autoloader, not a working install.
+  #
+  # bitexpert/phpstan-magento is what makes this viable at all: without it, every reference to
+  # an auto-generated *Factory is an unknown class.
+  static-analysis:
+    name: PHPStan (PHP ${{ matrix.php }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.4']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+
+      - name: Install dependencies
+        run: composer update --no-interaction --no-progress --prefer-dist
+
+      - name: Run PHPStan
+        run: vendor/bin/phpstan analyse --no-progress --error-format=github
+
+  check-extension:
+    needs: compute-matrix
+    uses: graycoreio/github-actions-magento2/.github/workflows/check-extension.yaml@v8.9.0
+    with:
+      matrix: ${{ needs.compute-matrix.outputs.matrix }}
+      # The default mirror (https://mirror.mage-os.org/) only proxies magento/*
+      # packages; the mage-os/project-community-edition metapackage is published
+      # to https://repo.mage-os.org/. Without this override, composer fails with
+      # "Could not find package mage-os/project-community-edition".
+      magento_repository: https://repo.mage-os.org/

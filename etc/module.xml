@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Copyright © Mage-OS. All rights reserved.
+ * See LICENSE.txt / LICENSE_AFL.txt for license details.
+ */
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:Module/etc/module.xsd">
+    <module name="MageOS_Profiler" setup_version="1.0.0">
+        <sequence>
+            <module name="Magento_Config"/>
+            <!-- ProfilerEnableCommand extends Magento_Developer's dev:profiler:enable. -->
+            <module name="Magento_Developer"/>
+        </sequence>
+    </module>
+</config>

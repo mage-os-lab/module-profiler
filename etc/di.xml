@@ -1,0 +1,237 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Copyright © Mage-OS. All rights reserved.
+ * See LICENSE.txt / LICENSE_AFL.txt for license details.
+ */
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
+
+    <!--
+        NOTE: the profiler output type itself cannot be registered here. Magento configures the
+        profiler in app/bootstrap.php before the ObjectManager exists, and
+        Magento\Framework\Profiler\Driver\Standard\Output\Factory is hard-instantiated with no DI map.
+        The `tabular` alias is resolved in MageOS_Profiler's bootstrap.php instead.
+    -->
+    <!--
+        SQL profiling. The adapter is built through MysqlFactory::create() -> ObjectManager::create(),
+        so it is an interceptor and even the adapter's own internal $this->query() calls (from
+        fetchAll/fetchOne/insert/update/...) are covered.
+        Controlled with MAGE_PROFILER_SQL; it costs one static isEnabled() check when profiling is off.
+    -->
+    <type name="Magento\Framework\DB\Adapter\Pdo\Mysql">
+        <plugin name="mageos_profiler_sql" type="MageOS\Profiler\Plugin\Db\QueryProfiler" sortOrder="10"/>
+    </type>
+
+    <!--
+        Indexer + Mview: turns `bin/magento indexer:reindex` from a wall of SQL into per-indexer totals.
+        Declared on the concrete Indexer, NOT on IndexerInterface: Indexer\DependencyDecorator also
+        implements the interface and delegates to Indexer, so an interface plugin fires twice and each
+        indexer appears nested inside a duplicate of itself. Indexers that the decorator triggers as
+        dependencies run through their own Indexer instance, so nothing is lost.
+    -->
+    <type name="Magento\Indexer\Model\Indexer">
+        <plugin name="mageos_profiler_indexer" type="MageOS\Profiler\Plugin\Indexer\IndexerProfiler" sortOrder="10"/>
+    </type>
+    <type name="Magento\Framework\Mview\ActionInterface">
+        <plugin name="mageos_profiler_mview" type="MageOS\Profiler\Plugin\Indexer\MviewActionProfiler" sortOrder="10"/>
+    </type>
+
+    <!--
+        Root timer for CLI runs. Under php-fpm everything nests below App\Bootstrap::run()'s `magento`
+        timer; bin/magento has no equivalent, so without this a CLI profile is a flat list of roots.
+        Attached to the Symfony command, not to Magento\Framework\Console\Cli: bin/magento line 22 builds
+        the Cli with a plain `new`, so it is never an interceptor. Commands come from CommandList via the
+        ObjectManager and are.
+    -->
+    <type name="Symfony\Component\Console\Command\Command">
+        <plugin name="mageos_profiler_cli" type="MageOS\Profiler\Plugin\Console\CliProfiler" sortOrder="10"/>
+    </type>
+
+    <!--
+        Per-job cron timing. Cron already measures each job, but against its own Stat instance built
+        from StatFactory, and writes the result out as JSON - none of it reaches \Magento\Framework\Profiler,
+        so bin/magento cron:run profiles as one opaque CLI:cron:run row. Plugging Stat is what cron
+        actually drives, and it is the same seam Adobe's NewRelicReporting\Plugin\StatPlugin uses.
+        Note this fires for every timer the profiler records, its own included; see the plugin.
+    -->
+    <type name="Magento\Framework\Profiler\Driver\Standard\Stat">
+        <plugin name="mageos_profiler_cron" type="MageOS\Profiler\Plugin\Cron\StatProfiler" sortOrder="10"/>
+    </type>
+
+    <!--
+        Controller dispatch, on the interface. Core only times the deprecated Action base class
+        (CONTROLLER_ACTION:), so controllers implementing ActionInterface directly - the modern
+        majority - have no timer between the root `magento` row and the SQL underneath it. The plugin
+        skips legacy actions so the two never double-count.
+    -->
+    <type name="Magento\Framework\App\ActionInterface">
+        <plugin name="mageos_profiler_controller" type="MageOS\Profiler\Plugin\App\ActionProfiler" sortOrder="10"/>
+    </type>
+
+    <!--
+        Checkout arithmetic. The first area here that instruments Magento's own application rather than
+        the infrastructure under it, and the place a real store spends its checkout time.
+
+        Totals are hooked at two levels: the whole pass, and each collector. The per-collector plugin
+        is on CollectorInterface rather than AbstractTotal because a collector is only required to
+        implement the interface, and the ones that skip the abstract class are third-party - exactly
+        the ones worth timing.
+
+        Two plugin classes, not one with two methods: Magento matches plugin methods by name against
+        the type the plugin is declared on, and TotalsCollector has a collect() of its own with an
+        unrelated signature - so a single class serving both types gets aroundCollect() applied to
+        both, and the wrong one fatals on the type hint.
+    -->
+    <type name="Magento\Quote\Model\Quote\TotalsCollector">
+        <plugin name="mageos_profiler_totals" type="MageOS\Profiler\Plugin\Checkout\TotalsProfiler" sortOrder="10"/>
+    </type>
+    <type name="Magento\Quote\Model\Quote\Address\Total\CollectorInterface">
+        <plugin name="mageos_profiler_total_collector" type="MageOS\Profiler\Plugin\Checkout\TotalCollectorProfiler" sortOrder="10"/>
+    </type>
+
+    <!--
+        Rate collection runs every carrier in sequence, and a live one is an HTTP call inside the
+        request. HTTP: already reports that call, but by host - and a rate aggregator answers for
+        several carriers on one host, so the carrier code is what says which to switch off.
+    -->
+    <type name="Magento\Shipping\Model\Shipping">
+        <plugin name="mageos_profiler_shipping" type="MageOS\Profiler\Plugin\Checkout\ShippingProfiler" sortOrder="10"/>
+    </type>
+
+    <!-- Every active rule against every quote item, plus a second pass for shipping discounts. -->
+    <type name="Magento\SalesRule\Model\Validator">
+        <plugin name="mageos_profiler_salesrule" type="MageOS\Profiler\Plugin\Checkout\SalesRuleProfiler" sortOrder="10"/>
+    </type>
+
+    <!-- Session persistence: on a Redis backend the read blocks on the session lock. -->
+    <type name="Magento\Framework\Session\SaveHandler">
+        <plugin name="mageos_profiler_session" type="MageOS\Profiler\Plugin\Session\SaveHandlerProfiler" sortOrder="10"/>
+    </type>
+
+    <!-- Search, on the interface: Elasticsearch, OpenSearch, MySQL and third-party engines alike. -->
+    <type name="Magento\Framework\Search\AdapterInterface">
+        <plugin name="mageos_profiler_search" type="MageOS\Profiler\Plugin\Search\AdapterProfiler" sortOrder="10"/>
+    </type>
+
+    <!--
+        The OpenSearch client, one level below the adapter: which index, which operation, how big the
+        indexing batches are. The adapter above only sees reads, so this is the only view of the write
+        path - without it a catalogsearch_fulltext reindex looks like pure SQL.
+        Declared on SearchClient, not on the OpenSearch subclass: ClientFactory picks between the two
+        depending on isClientOpenSearchV2(), and a plugin on a parent class is inherited by the child,
+        so one declaration covers both. The client is built through ObjectManager::create()
+        (AdvancedSearch/Model/Client/ClientFactory.php), so it really is an interceptor. Declaring a
+        <type> for a class the install does not have is inert, so this stays safe on Elasticsearch.
+        Shares MAGE_PROFILER_SEARCH with the adapter above; `operation` drops the index detail.
+    -->
+    <type name="Magento\OpenSearch\Model\SearchClient">
+        <plugin name="mageos_profiler_opensearch" type="MageOS\Profiler\Plugin\Search\OpenSearchClientProfiler" sortOrder="10"/>
+    </type>
+
+    <!--
+        Outbound HTTP. Host only - query strings carry API keys.
+        Declared on ClientInterface, not on Client\Curl: Client\Socket implements the same contract and
+        was invisible while this named the concrete class, and third-party clients that implement the
+        interface are covered without another entry. Declare one or the other, never both - Curl would
+        then carry two plugin layers, and while Guard::enter() keeps the report correct the inner one is
+        pure overhead on a hot path.
+    -->
+    <type name="Magento\Framework\HTTP\ClientInterface">
+        <plugin name="mageos_profiler_http_client" type="MageOS\Profiler\Plugin\Http\CurlProfiler" sortOrder="10"/>
+    </type>
+    <type name="Magento\Framework\HTTP\AsyncClientInterface">
+        <plugin name="mageos_profiler_http_async" type="MageOS\Profiler\Plugin\Http\AsyncClientProfiler" sortOrder="10"/>
+    </type>
+
+    <!--
+        The Laminas client, which is a separate hierarchy: it extends Laminas\Http\Client and implements
+        no part of ClientInterface above, so nothing else here sees it. PayPal Payflow, USPS, DHL, the
+        currency imports and Payment\Gateway\Http\Client\Zend all go through LaminasClientFactory, which
+        creates it via the ObjectManager - so this really is an interceptor, and the generated one
+        overrides the inherited public send() like any other method.
+        The adapter plugin below does not cover this traffic either: LaminasClient configures
+        Framework\HTTP\Adapter\Curl, but Laminas\Http\Client::setAdapter() builds it with a plain `new`.
+    -->
+    <type name="Magento\Framework\HTTP\LaminasClient">
+        <plugin name="mageos_profiler_http_laminas" type="MageOS\Profiler\Plugin\Http\LaminasClientProfiler" sortOrder="10"/>
+    </type>
+
+    <!--
+        The transport, one level below a client: Adapter\Curl. Timed on read(), where the network wait
+        is - write() only hands the request over. Shares MAGE_PROFILER_HTTP with the clients above.
+        Reached only when the adapter itself comes from the ObjectManager, i.e. CurlFactory::create().
+        Payment and shipping gateways were assumed to land here, and they do not: they go through
+        LaminasClient, whose setAdapter() builds this class with a plain `new`, leaving the interceptor
+        out of the picture entirely. That traffic is covered by LaminasClientProfiler above, not here.
+    -->
+    <type name="Magento\Framework\HTTP\Adapter\Curl">
+        <plugin name="mageos_profiler_http_adapter" type="MageOS\Profiler\Plugin\Http\CurlAdapterProfiler" sortOrder="10"/>
+    </type>
+
+    <!-- Built-in full page cache. Inert behind Varnish, which is itself worth seeing. MAGE_PROFILER_FPC. -->
+    <type name="Magento\Framework\App\PageCache\Kernel">
+        <plugin name="mageos_profiler_fpc" type="MageOS\Profiler\Plugin\Cache\PageCacheProfiler" sortOrder="10"/>
+    </type>
+
+    <!--
+        Lock waits are dead time that shows up nowhere else: no query, no cache call, just a request
+        queued behind another process. MAGE_PROFILER_LOCK.
+    -->
+    <type name="Magento\Framework\Lock\LockManagerInterface">
+        <plugin name="mageos_profiler_lock" type="MageOS\Profiler\Plugin\Lock\LockManagerProfiler" sortOrder="10"/>
+    </type>
+
+    <!-- Transactional mail is sent inside the request that triggered it. MAGE_PROFILER_MAIL. -->
+    <type name="Magento\Framework\Mail\TransportInterface">
+        <plugin name="mageos_profiler_mail" type="MageOS\Profiler\Plugin\Mail\TransportProfiler" sortOrder="10"/>
+    </type>
+
+    <!-- Thumbnail generation on the first uncached category view. MAGE_PROFILER_IMAGE. -->
+    <type name="Magento\Framework\Image\Adapter\AdapterInterface">
+        <plugin name="mageos_profiler_image" type="MageOS\Profiler\Plugin\Image\AdapterProfiler" sortOrder="10"/>
+    </type>
+
+    <!--
+        Both ends of the queue. Consumers are long-running CLI processes, the workload most worth
+        profiling and the one with nothing to attribute its SQL to today. MAGE_PROFILER_QUEUE.
+    -->
+    <type name="Magento\Framework\MessageQueue\PublisherInterface">
+        <plugin name="mageos_profiler_queue_publish" type="MageOS\Profiler\Plugin\MessageQueue\QueueProfiler" sortOrder="10"/>
+    </type>
+    <type name="Magento\Framework\MessageQueue\ConsumerInterface">
+        <plugin name="mageos_profiler_queue_consume" type="MageOS\Profiler\Plugin\MessageQueue\QueueProfiler" sortOrder="10"/>
+    </type>
+
+    <!--
+        Cache backends are built by Zend_Cache::factory(), never by the ObjectManager, so they cannot be
+        intercepted. A frontend decorator is the only way in. Appended last, so it is the outermost
+        decorator and measures what the application actually pays per cache operation.
+    -->
+    <type name="Magento\Framework\App\Cache\Frontend\Factory">
+        <arguments>
+            <argument name="decorators" xsi:type="array">
+                <item name="mageos_profiler" xsi:type="array">
+                    <item name="class" xsi:type="string">MageOS\Profiler\Model\Cache\ProfilerDecorator</item>
+                </item>
+            </argument>
+        </arguments>
+    </type>
+
+    <!--
+        `dev:profiler:enable` stays core's command name: the item name below is the one
+        Magento_Developer registers (vendor/magento/module-developer/etc/di.xml), so this replaces
+        that entry rather than adding a second command. The subclass only teaches it the output
+        types this module registers; everything else falls through to core.
+        `dev:profiler:disable` is core's, untouched - it writes the same var/profiler.flag.
+    -->
+    <type name="Magento\Framework\Console\CommandList">
+        <arguments>
+            <argument name="commands" xsi:type="array">
+                <item name="dev_profiler_enable" xsi:type="object">MageOS\Profiler\Console\Command\ProfilerEnableCommand</item>
+                <item name="mageos_profiler_status" xsi:type="object">MageOS\Profiler\Console\Command\ProfilerStatusCommand</item>
+            </argument>
+        </arguments>
+    </type>
+
+</config>
