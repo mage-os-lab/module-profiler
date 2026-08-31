@@ -263,8 +263,11 @@ class ProfilerDecorator extends Bare
              * the one it reads and writes through, and the one behind the tag adapter - and only this
              * object can see both. getBackend() reaches the tag adapter alone, which instruments the
              * SADD/SREM traffic and none of the MGETs.
+             *
+             * Called unguarded: getLowLevelFrontend() is declared on Magento\Framework\Cache\
+             * FrontendInterface itself, so every frontend this decorator can wrap has it.
              */
-            $root = method_exists($this, 'getLowLevelFrontend') ? $this->getLowLevelFrontend() : $this->getBackend();
+            $root = $this->getLowLevelFrontend();
 
             $this->clientChecked = (new ProfiledRedisInstaller($this->settings))->install($root);
         } catch (\Throwable $e) {

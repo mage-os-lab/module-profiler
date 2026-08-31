@@ -32,6 +32,15 @@ parameters:
             # that decides anything lives in ProfiledRedisInstaller, which is still analysed.
             - Model/Cache/ProfiledRedis.php
     ignoreErrors:
+        # PHPStan 2.x parses every PHPDoc tag value as a type expression, and PHPMD's
+        # @SuppressWarnings(PHPMD.UnusedFormalParameter) - which Magento core uses everywhere, and
+        # which the Magento2 phpcs standard expects on unused plugin $subject parameters - is not
+        # one. Scoped to that tag by identifier *and* message so a genuine malformed @param or
+        # @return in our own docblocks is still reported.
+        -
+            identifier: phpDoc.parseError
+            message: '#^PHPDoc tag @SuppressWarnings has invalid value#'
+
         # BP is defined by app/autoload.php at runtime, which is not part of the analysed set.
         # Every use of it in this module is already guarded by defined('BP').
         - '#Constant BP not found#'
