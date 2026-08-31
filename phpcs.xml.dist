@@ -12,5 +12,27 @@
     <arg name="extensions" value="php,phtml"/>
     <arg value="sp"/>
 
+    <!--
+        Warnings are reported but do not fail the build. The Magento2 standard raises ~300 of them
+        here, almost all "missing short description" and "$x parameter is missing in method
+        annotation" on docblocks inherited from Magento's own conventions; gating on them would put
+        a docblock rewrite in front of every change. Errors still fail.
+
+        Set here rather than passed as a flag because the reusable check-extension workflow invokes
+        a bare `vendor/bin/phpcs`, and its coding-standard job cannot be configured by the caller.
+    -->
+    <config name="ignore_warnings_on_exit" value="1"/>
+
     <rule ref="Magento2"/>
+
+    <!--
+        The sniff crashes on this file - "The $start position for getTokensAsString() must exist in
+        the token stack" - which phpcs reports as an unignorable error and which aborts the whole
+        file, so nothing in bootstrap.php gets checked at all. Reproduced on PHP 8.4 with
+        magento-coding-standard 41 and on PHP 8.5 locally. Scoped to the one file that triggers it
+        so the sniff keeps running everywhere else.
+    -->
+    <rule ref="Magento2.Functions.FunctionsDeprecatedWithoutArgument">
+        <exclude-pattern>bootstrap.php</exclude-pattern>
+    </rule>
 </ruleset>
