@@ -47,6 +47,37 @@ jobs:
       - name: Run PHPStan
         run: vendor/bin/phpstan analyse --no-progress --error-format=github
 
+  # The reusable workflow's own coding-standard job is disabled in .github/check-extension.json and
+  # replaced by this one, for two reasons. It resolves the PHPCompatibility standard through a
+  # vendor-directory guess that does not survive the mage-os packages replacing their magento/*
+  # counterparts, and it fails the build on warnings with no way to opt out from the caller.
+  coding-standard:
+    name: Coding standard (PHP ${{ matrix.php }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.4']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+
+      # dealerdirect/phpcodesniffer-composer-installer registers every phpcodesniffer-standard
+      # package it installs - the Magento2 standard and the PHPCompatibility fork it references -
+      # so installed_paths needs no manual wiring here.
+      - name: Install dependencies
+        run: composer update --no-interaction --no-progress --prefer-dist
+
+      # phpcs.xml.dist scopes this to the runtime code. Errors fail the build; the Magento2
+      # standard's docblock warnings do not - the module carries ~300 inherited from Magento's own
+      # conventions, and gating on them would block every change behind a docblock rewrite.
+      - name: Run phpcs
+        run: vendor/bin/phpcs --runtime-set ignore_warnings_on_exit 1
+
   check-extension:
     needs: compute-matrix
     uses: graycoreio/github-actions-magento2/.github/workflows/check-extension.yaml@v8.9.0

@@ -36,12 +36,14 @@
     },
     "require-dev": {
         "bitexpert/phpstan-magento": "^0.43",
+        "dealerdirect/phpcodesniffer-composer-installer": "*",
         "magento/magento-coding-standard": "*",
         "magento/module-open-search": "*",
         "magento/module-quote": "*",
         "magento/module-sales-rule": "*",
         "magento/module-shipping": "*",
         "magento/module-webapi": "*",
+        "magento/php-compatibility-fork": "*",
         "phpstan/phpstan": "^2.0",
         "phpunit/phpunit": "^10.5"
     },
