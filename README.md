@@ -20,22 +20,6 @@ It profiles **all three request types from one switch**: storefront and admin **
 
 No core file is patched: activation happens in `bootstrap.php`, before the ObjectManager exists, which is the only moment early enough to catch the whole request.
 
-```
-[2026-08-04 02:07:35] pid=68 sapi=fpm-fcgi GET /rest/V1/directory/currency
-Timers: 19 | Calls: 21 | Root time: 73.567 ms | Peak real: 11.96 MB | Peak emalloc: 10.66 MB
-+-------------------------------------------------------+-----+-----------+----------+--------------+--------------+------+
-| Timer Id                                              | Cnt | Time (ms) | Avg (ms) | Emalloc (KB) | RealMem (KB) | %    |
-+-------------------------------------------------------+-----+-----------+----------+--------------+--------------+------+
-| cache_frontend_create                                 | 2   | 3.772     | 1.886    | 20.43        | 0.00         | 5.1  |
-| magento                                               | 1   | 69.795    | 69.795   | 4277.05      | 2048.00      | 94.9 |
-| |- store.resolve                                      | 1   | 10.267    | 10.267   | 73.98        | 0.00         | 14.0 |
-| |- locale/currency                                    | 2   | 2.638     | 1.319    | 22.00        | 0.00         | 3.6  |
-| |  |- EVENT:currency_display_options_forming          | 1   | 1.100     | 1.100    | 19.13        | 0.00         | 1.5  |
-| |  |  |- OBSERVER:magento_currencysymbol_currency...  | 1   | 1.021     | 1.021    | 9.77         | 0.00         | 1.4  |
-| |- EVENT:controller_front_send_response_before        | 1   | 3.941     | 3.941    | 23.90        | 0.00         | 5.4  |
-+-------------------------------------------------------+-----+-----------+----------+--------------+--------------+------+
-```
-
 > [!WARNING]
 > **Development and staging use only — not for production.**
 >
