@@ -34,6 +34,8 @@ No core file is patched: activation happens in `bootstrap.php`, before the Objec
 
 ## Demo
 
+### `tabular` — a table you can read anywhere
+
 `tabular` output on a CLI command:
 
 <div align="center">
@@ -41,6 +43,41 @@ No core file is patched: activation happens in `bootstrap.php`, before the Objec
 ![Tabular profiler output on a CLI command](./docs/tabular-demo-cli.png)
 
 </div>
+
+The same output covers **every request type** — storefront and admin web requests, REST, GraphQL and
+CLI alike. It is appended to `var/log/profiler_tabular.log` rather than to the response, so a browser
+or API run is read the same way a CLI run is:
+
+```bash
+tail -f var/log/profiler_tabular.log
+```
+
+On CLI it is also printed to STDERR, so the table lands in your terminal as soon as the command
+finishes. Turn that off with `MAGE_PROFILER_CLI_STDERR=0` when you only want the log.
+
+### `json` — the same run, in the admin
+
+`json` writes one structured file per run instead of a table. Install
+**[MageOS_ProfilerAdminUi](https://github.com/mage-os-lab/module-profiler-admin-ui)** to read those
+files at *System > Tools > Profiler Reports*:
+
+```bash
+composer require mage-os/module-profiler-admin-ui
+```
+
+<div align="center">
+
+![The admin viewer: run picker, filters, and the call tree with the Self column heat-shaded](./docs/mage-os-profiler-admin-ui.png)
+
+</div>
+
+A collapsible call tree, a sortable and filterable table with the Self column heat-shaded, and a
+timeline of every individual call — with the SQL behind any query timer one click away when the run
+was recorded with `MAGE_PROFILER_SQL=query`. The viewer only reads what this module writes and adds
+nothing to the recording side, so it can be left uninstalled in production. See its
+[repository](https://github.com/mage-os-lab/module-profiler-admin-ui) for details.
+
+Both output types can run at once: `MAGE_PROFILER=tabular,json`.
 
 ## Key Features
 * Profiles **CLI commands** and **REST / GraphQL API** requests — neither of which stock Magento can profile at all
@@ -376,6 +413,9 @@ Each report holds both the aggregate `rows` a `tabular` report shows and the per
  "rows":[{"id":"magento","count":1,"time":0.069795,"avg":0.069795}],
  "spans":[{"id":"magento","start":0.0,"time":0.069795,"depth":0}]}
 ```
+
+This is the format [MageOS_ProfilerAdminUi](https://github.com/mage-os-lab/module-profiler-admin-ui)
+reads (see [Demo](#demo)); anything else that can parse JSON can read it just as well.
 
 ### Instrument Your Own Code
 
