@@ -39,16 +39,25 @@
      * getenv() is checked before $_SERVER because `MAGE_PROFILER=tabular bin/magento ...` only lands
      * in $_SERVER when variables_order includes "E", which is not guaranteed on CLI.
      */
-    $fromCookie = false;
-    $value      = getenv('MAGE_PROFILER');
+    $fromRequest = false;
+    $value       = getenv('MAGE_PROFILER');
 
     if (($value === false || $value === '') && !empty($_SERVER['MAGE_PROFILER'])) {
         $value = $_SERVER['MAGE_PROFILER'];
     }
 
     if (($value === false || $value === '') && !empty($_COOKIE['MAGE_PROFILER'])) {
-        $value      = $_COOKIE['MAGE_PROFILER'];
-        $fromCookie = true;
+        $value       = $_COOKIE['MAGE_PROFILER'];
+        $fromRequest = true;
+    }
+
+    /*
+     * The same switch as a request header, for clients that cannot set a cookie: fetch() refuses the
+     * Cookie header, and a cookie is not sent to a store on another domain at all.
+     */
+    if (($value === false || $value === '') && !empty($_SERVER['HTTP_X_MAGE_PROFILER'])) {
+        $value       = $_SERVER['HTTP_X_MAGE_PROFILER'];
+        $fromRequest = true;
     }
 
     if ($value === false || $value === '') {
@@ -90,8 +99,8 @@
     }
 
     /**
-     * Cookie activation is a live-site information-disclosure and disk-write vector, so it is only
-     * honoured in developer mode, or when the cookie carries the MAGE_PROFILER_SECRET value.
+     * Cookie and header activation is a live-site information-disclosure and disk-write vector, so it
+     * is only honoured in developer mode, or when the value carries the MAGE_PROFILER_SECRET value.
      */
     $mode = '';
     $env  = BP . '/app/etc/env.php';
@@ -104,13 +113,14 @@
     $secretMatched  = $secretExpected !== '' && hash_equals($secretExpected, $secretGiven);
     $cookiesTrusted = $mode === 'developer' || $secretMatched;
 
-    if ($fromCookie && !$cookiesTrusted) {
+    if ($fromRequest && !$cookiesTrusted) {
         return;
     }
 
     /**
-     * Area flags may also arrive as cookies, so a single request can be recorded with, say, SQL
-     * capture on without setting a container-wide variable that then applies to everybody.
+     * Area flags may also arrive as cookies or as `X-Mage-Profiler-<flag>` headers, so a single request
+     * can be recorded with, say, SQL capture on without setting a container-wide variable that then
+     * applies to everybody.
      *
      * Gated on $cookiesTrusted, NOT merely on having got this far. Activation by environment
      * variable says the operator wants profiling; it does not say a passing visitor may upgrade that
@@ -131,12 +141,13 @@
             continue;
         }
 
-        if (empty($_COOKIE[$name]) || !is_string($_COOKIE[$name])) {
+        $requestValue = $_COOKIE[$name] ?? $_SERVER['HTTP_X_' . $name] ?? null;
+        if (!is_string($requestValue) || $requestValue === '') {
             continue;
         }
 
         /* Allowlisted names, and a value shape narrow enough that nothing can be smuggled through. */
-        $cookieValue = trim($_COOKIE[$name]);
+        $cookieValue = trim($requestValue);
         if ($cookieValue !== '' && preg_match('/^[A-Za-z0-9_,-]{1,32}$/', $cookieValue)) {
             putenv($name . '=' . $cookieValue);
         }
