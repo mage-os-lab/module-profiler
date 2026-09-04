@@ -41,7 +41,7 @@ class Timeline implements DriverInterface
     /**
      * Span fields a caller may attach through the tags argument of start().
      */
-    private const CAPTURE_KEYS = ['sql', 'binds'];
+    private const CAPTURE_KEYS = ['sql', 'binds', 'query'];
 
     /**
      * Whether a driver of this class was constructed during the request.
@@ -113,6 +113,13 @@ class Timeline implements DriverInterface
      * @var int
      */
     private $captured = 0;
+
+    /**
+     * Spans that carried a captured search request body.
+     *
+     * @var int
+     */
+    private $searchCaptured = 0;
 
     /**
      * @var bool
@@ -302,8 +309,9 @@ class Timeline implements DriverInterface
             $this->stack    = [];
             $this->spans    = [];
             $this->totals   = [];
-            $this->dropped  = 0;
-            $this->captured = 0;
+            $this->dropped        = 0;
+            $this->captured       = 0;
+            $this->searchCaptured = 0;
 
             return;
         }
@@ -403,6 +411,9 @@ class Timeline implements DriverInterface
         $span += $this->captureFields(isset($frame['tags']) ? (array)$frame['tags'] : []);
         if (isset($span['sql'])) {
             $this->captured++;
+        }
+        if (isset($span['query'])) {
+            $this->searchCaptured++;
         }
 
         /*
@@ -550,6 +561,10 @@ class Timeline implements DriverInterface
 
         if ($this->captured > 0) {
             $meta['sql_captured'] = $this->captured;
+        }
+
+        if ($this->searchCaptured > 0) {
+            $meta['search_captured'] = $this->searchCaptured;
         }
 
         $report = ['meta' => $meta, 'rows' => $rows];

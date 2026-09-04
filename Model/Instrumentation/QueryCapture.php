@@ -45,6 +45,13 @@ class QueryCapture
     private const ENV_BUDGET = 'MAGE_PROFILER_SQL_BUDGET';
 
     /**
+     * A search request body with aggregations runs to several KB, so it has its own cap.
+     */
+    public const DEFAULT_SEARCH_MAXLEN = 4000;
+
+    private const ENV_SEARCH_MAXLEN = 'MAGE_PROFILER_SEARCH_MAXLEN';
+
+    /**
      * Binds are context for the statement, not the statement. Capped by constant rather than env:
      * the module already carries eleven environment knobs.
      */
@@ -116,6 +123,29 @@ class QueryCapture
      * @param string|Select|object|null $sql
      * @return string|null
      */
+    /**
+     * The body of a search request as compact JSON, charged to the same budget as the statements.
+     *
+     * @param array<string, mixed> $body
+     * @return array{query: string}|null
+     */
+    public function captureSearch(array $body): ?array
+    {
+        if ($this->spent >= $this->budget()) {
+            return null;
+        }
+
+        $text = json_encode($body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR);
+        if (!is_string($text) || $text === '' || $text === '[]') {
+            return null;
+        }
+
+        $text = $this->cut($text, $this->settings->getInt(self::ENV_SEARCH_MAXLEN, self::DEFAULT_SEARCH_MAXLEN, 0));
+        $this->spent += strlen($text);
+
+        return ['query' => $text];
+    }
+
     private function stringify($sql): ?string
     {
         if (is_string($sql)) {
@@ -164,25 +194,25 @@ class QueryCapture
             return null;
         }
 
-        $max = $this->settings->getInt(self::ENV_MAXLEN, self::DEFAULT_MAXLEN, 0);
+        return $this->cut($text, $this->settings->getInt(self::ENV_MAXLEN, self::DEFAULT_MAXLEN, 0));
+    }
+
+    /**
+     * Cut at the tail on a character boundary, so a truncated statement stays valid UTF-8.
+     *
+     * @param string $text
+     * @param int $max
+     * @return string
+     */
+    private function cut(string $text, int $max): string
+    {
         if (strlen($text) <= $max) {
             return $text;
         }
 
-        /*
-         * Cut the tail, the opposite of TimerId::truncate(): a statement leads with the operation
-         * and the tables, and repeats itself in the WHERE. mb_strcut rather than substr because a
-         * byte cut can split a multi-byte literal, and Timeline::flush() encodes with
-         * JSON_PARTIAL_OUTPUT_ON_ERROR - invalid UTF-8 would turn the whole string into null with
-         * no trace of why. The trailing ellipsis is the only truncation marker needed.
-         */
         return mb_strcut($text, 0, max(0, $max - strlen(self::ELLIPSIS)), 'UTF-8') . self::ELLIPSIS;
     }
 
-    /**
-     * @param mixed $bind
-     * @return list<string>
-     */
     private function formatBinds($bind): array
     {
         if ($bind === null || $bind === []) {
