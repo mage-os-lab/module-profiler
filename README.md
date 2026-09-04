@@ -135,11 +135,15 @@ bin/magento dev:profiler:status
 bin/magento dev:profiler:disable
 ```
 
-For **REST / GraphQL requests from an API client** such as Postman, send the cookie as a plain request header:
+For **REST / GraphQL requests from an API client** such as Postman, send the cookie as a plain request header,
+or use the `X-Mage-Profiler` header, which takes the same value and passes the same gate:
 
 ```http
 Cookie: MAGE_PROFILER=tabular
+X-Mage-Profiler: json
 ```
+
+A `json` run answers with the file name of its report in the `X-Mage-Profiler-Report` response header.
 
 <div align="center">
 
@@ -155,6 +159,16 @@ Cookie: MAGE_PROFILER=tabular,json:<secret>
 ```
 
 Store configuration cannot switch profiling on: activation happens during bootstrap, long before store config is readable. The admin settings control the **output** only.
+
+### FrankenPHP Worker Mode
+
+A worker process serves many requests, so the arming at process start sees no request and a report
+that waits for process shutdown never arrives. `Plugin\App\WorkerRequest` runs the activation again
+at `AppInterface::launch()` for every request. After the response the worker reloads the application
+state (stores, scopes, EAV, search config) and resets the ObjectManager; that work records under a
+second root, `reset_state`, next to `magento`, with a `RELOAD:` row per reload processor, and the
+report is written at the end of it. Cookie, header, environment and flag activation all work per
+request. Use the `json` output there: `tabular` prints at process exit.
 
 ### Every Request Type Gets A Root
 
@@ -210,9 +224,9 @@ report tells you `SQL:SELECT (catalog_product_entity +3)` cost 157 ms but never 
 MAGE_PROFILER=json MAGE_PROFILER_SQL=query bin/magento indexer:reindex
 ```
 
-For a single storefront request, set it as a **second cookie** next to `MAGE_PROFILER` — area flags
-are otherwise read from the environment only, which would turn capture on for every request the
-container serves:
+For a single storefront request, set it as a **second cookie** next to `MAGE_PROFILER`, or as an
+`X-Mage-Profiler-Sql` header — area flags are otherwise read from the environment only, which would
+turn capture on for every request the container serves:
 
 ```
 Cookie: MAGE_PROFILER=json
