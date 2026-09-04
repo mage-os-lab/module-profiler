@@ -160,6 +160,16 @@ Cookie: MAGE_PROFILER=tabular,json:<secret>
 
 Store configuration cannot switch profiling on: activation happens during bootstrap, long before store config is readable. The admin settings control the **output** only.
 
+### FrankenPHP Worker Mode
+
+A worker process serves many requests, so the arming at process start sees no request and a report
+that waits for process shutdown never arrives. `Plugin\App\WorkerRequest` runs the activation again
+at `AppInterface::launch()` for every request. After the response the worker reloads the application
+state (stores, scopes, EAV, search config) and resets the ObjectManager; that work records under a
+second root, `reset_state`, next to `magento`, with a `RELOAD:` row per reload processor, and the
+report is written at the end of it. Cookie, header, environment and flag activation all work per
+request. Use the `json` output there: `tabular` prints at process exit.
+
 ### Every Request Type Gets A Root
 
 Nesting is only useful if something sits at the top of it. Core opens one root timer, `magento`, for
