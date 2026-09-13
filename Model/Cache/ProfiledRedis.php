@@ -35,7 +35,7 @@ use MageOS\Profiler\Model\Instrumentation\TimerId;
  * Commands are uppercase so they never collide with ProfilerDecorator's lowercase operations.
  * Controlled with MAGE_PROFILER_REDIS.
  */
-class ProfiledRedis extends \Redis
+class ProfiledRedis extends ProfiledRedisBase
 {
     private const PREFIX = 'REDIS';
 
