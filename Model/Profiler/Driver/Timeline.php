@@ -41,7 +41,7 @@ class Timeline implements DriverInterface
     /**
      * Span fields a caller may attach through the tags argument of start().
      */
-    private const CAPTURE_KEYS = ['sql', 'binds'];
+    private const CAPTURE_KEYS = ['sql', 'binds', 'query'];
 
     /**
      * Whether a driver of this class was constructed during the request.
@@ -54,6 +54,20 @@ class Timeline implements DriverInterface
      * @var bool
      */
     private static $recording = false;
+
+    /**
+     * File name of the report this request writes, chosen up front so the response can name it.
+     *
+     * @var string|null
+     */
+    private static $reportFile = null;
+
+    /**
+     * The driver recording this request, closed by finishRequest() in a FrankenPHP worker.
+     *
+     * @var Timeline|null
+     */
+    private static $current = null;
 
     /**
      * Open invocations, innermost last.
@@ -101,6 +115,13 @@ class Timeline implements DriverInterface
     private $captured = 0;
 
     /**
+     * Spans that carried a captured search request body.
+     *
+     * @var int
+     */
+    private $searchCaptured = 0;
+
+    /**
      * @var bool
      */
     private $flushed = false;
@@ -121,6 +142,16 @@ class Timeline implements DriverInterface
     private $context;
 
     /**
+     * @var ReportIndex
+     */
+    private $index;
+
+    /**
+     * @var string
+     */
+    private $fileName;
+
+    /**
      * @param array<string, mixed>|null $config
      */
     public function __construct(?array $config = null)
@@ -131,8 +162,15 @@ class Timeline implements DriverInterface
 
         $this->settings = new Settings();
         $this->context  = new RequestContext($this->settings);
+        $this->index    = new ReportIndex($this->baseDir, $this->settings);
+        $this->fileName = $this->index->generateFileName($this->context->getPid());
 
-        self::$recording = true;
+        self::$recording  = true;
+        self::$reportFile = $this->fileName;
+        self::$current    = $this;
+
+        /* Read now: in a worker the superglobals of the request are gone by the time the report is written. */
+        $this->context->getLabel();
 
         /*
          * Both, deliberately. __destruct() alone is not enough: Profiler::reset() drops the drivers
@@ -162,6 +200,35 @@ class Timeline implements DriverInterface
     public static function isRecording(): bool
     {
         return self::$recording;
+    }
+
+    /**
+     * Name of the report file this request writes, or null when no timeline driver is recording.
+     *
+     * Sent as the X-Mage-Profiler-Report response header, so the client that switched profiling on
+     * can open the report it produced. The name is fixed at construction; flush() writes to it.
+     *
+     * @return string|null
+     */
+    public static function getReportFile(): ?string
+    {
+        return self::$reportFile;
+    }
+
+    /**
+     * Write the report of the request now and forget the driver, so the next request of a worker process
+     * starts unarmed. Nothing happens when no driver is recording.
+     *
+     * @return void
+     */
+    public static function finishRequest(): void
+    {
+        if (self::$current !== null) {
+            self::$current->flush();
+        }
+        self::$current    = null;
+        self::$reportFile = null;
+        self::$recording  = false;
     }
 
     /**
@@ -242,8 +309,9 @@ class Timeline implements DriverInterface
             $this->stack    = [];
             $this->spans    = [];
             $this->totals   = [];
-            $this->dropped  = 0;
-            $this->captured = 0;
+            $this->dropped        = 0;
+            $this->captured       = 0;
+            $this->searchCaptured = 0;
 
             return;
         }
@@ -292,12 +360,9 @@ class Timeline implements DriverInterface
                 return;
             }
 
-            $index = new ReportIndex($this->baseDir, $this->settings);
-            $index->write(
-                $index->generateFileName($this->context->getPid()),
-                $payload,
-                $report['meta']
-            );
+            $this->index->write($this->fileName, $payload, $report['meta']);
+            $this->spans  = [];
+            $this->totals = [];
         } catch (\Throwable $e) {
             //phpcs:ignore Magento2.Functions.DiscouragedFunction
             error_log('MageOS_Profiler: ' . $e->getMessage());
@@ -346,6 +411,9 @@ class Timeline implements DriverInterface
         $span += $this->captureFields(isset($frame['tags']) ? (array)$frame['tags'] : []);
         if (isset($span['sql'])) {
             $this->captured++;
+        }
+        if (isset($span['query'])) {
+            $this->searchCaptured++;
         }
 
         /*
@@ -493,6 +561,10 @@ class Timeline implements DriverInterface
 
         if ($this->captured > 0) {
             $meta['sql_captured'] = $this->captured;
+        }
+
+        if ($this->searchCaptured > 0) {
+            $meta['search_captured'] = $this->searchCaptured;
         }
 
         $report = ['meta' => $meta, 'rows' => $rows];

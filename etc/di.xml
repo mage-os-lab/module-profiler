@@ -19,6 +19,30 @@
         fetchAll/fetchOne/insert/update/...) are covered.
         Controlled with MAGE_PROFILER_SQL; it costs one static isEnabled() check when profiling is off.
     -->
+    <!--
+        A FrankenPHP worker arms the profiler per request. The state reload and the ObjectManager reset
+        after the response record under a `reset_state` root, one `RELOAD:` row per reload processor;
+        the plugin is reset last, so the report it writes holds the whole reset.
+    -->
+    <type name="Magento\Framework\AppInterface">
+        <plugin name="mageos_profiler_worker_request" type="MageOS\Profiler\Plugin\App\WorkerRequest" sortOrder="10"/>
+    </type>
+    <type name="Magento\Framework\App\State\ReloadProcessorInterface">
+        <plugin name="mageos_profiler_worker_request" type="MageOS\Profiler\Plugin\App\WorkerRequest" sortOrder="10"/>
+    </type>
+    <type name="Magento\Framework\ObjectManager\Resetter\WeakMapSorter">
+        <arguments>
+            <argument name="sortOrder" xsi:type="array">
+                <item name="MageOS\Profiler\Plugin\App\WorkerRequest" xsi:type="number">10000</item>
+            </argument>
+        </arguments>
+    </type>
+
+    <!-- The response names the report file of a `json` run, so the client can open it. -->
+    <type name="Magento\Framework\App\Response\Http">
+        <plugin name="mageos_profiler_report_header" type="MageOS\Profiler\Plugin\App\ReportHeader" sortOrder="10"/>
+    </type>
+
     <type name="Magento\Framework\DB\Adapter\Pdo\Mysql">
         <plugin name="mageos_profiler_sql" type="MageOS\Profiler\Plugin\Db\QueryProfiler" sortOrder="10"/>
     </type>

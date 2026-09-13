@@ -135,11 +135,15 @@ bin/magento dev:profiler:status
 bin/magento dev:profiler:disable
 ```
 
-For **REST / GraphQL requests from an API client** such as Postman, send the cookie as a plain request header:
+For **REST / GraphQL requests from an API client** such as Postman, send the cookie as a plain request header,
+or use the `X-Mage-Profiler` header, which takes the same value and passes the same gate:
 
 ```http
 Cookie: MAGE_PROFILER=tabular
+X-Mage-Profiler: json
 ```
+
+A `json` run answers with the file name of its report in the `X-Mage-Profiler-Report` response header.
 
 <div align="center">
 
@@ -155,6 +159,16 @@ Cookie: MAGE_PROFILER=tabular,json:<secret>
 ```
 
 Store configuration cannot switch profiling on: activation happens during bootstrap, long before store config is readable. The admin settings control the **output** only.
+
+### FrankenPHP Worker Mode
+
+A worker process serves many requests, so the arming at process start sees no request and a report
+that waits for process shutdown never arrives. `Plugin\App\WorkerRequest` runs the activation again
+at `AppInterface::launch()` for every request. After the response the worker reloads the application
+state (stores, scopes, EAV, search config) and resets the ObjectManager; that work records under a
+second root, `reset_state`, next to `magento`, with a `RELOAD:` row per reload processor, and the
+report is written at the end of it. Cookie, header, environment and flag activation all work per
+request. Use the `json` output there: `tabular` prints at process exit.
 
 ### Every Request Type Gets A Root
 
@@ -210,9 +224,9 @@ report tells you `SQL:SELECT (catalog_product_entity +3)` cost 157 ms but never 
 MAGE_PROFILER=json MAGE_PROFILER_SQL=query bin/magento indexer:reindex
 ```
 
-For a single storefront request, set it as a **second cookie** next to `MAGE_PROFILER` — area flags
-are otherwise read from the environment only, which would turn capture on for every request the
-container serves:
+For a single storefront request, set it as a **second cookie** next to `MAGE_PROFILER`, or as an
+`X-Mage-Profiler-Sql` header — area flags are otherwise read from the environment only, which would
+turn capture on for every request the container serves:
 
 ```
 Cookie: MAGE_PROFILER=json
@@ -264,6 +278,12 @@ magento
 ```
 
 Reads report the alias; writes target a physical index whose version increments on every full reindex, so `magento2_product_1_v37` is folded to `magento2_product_1_v*` — otherwise each run would add a permanent new row and eat into the per-prefix id cap. Bulk batches carry their size snapped to a power of ten (`x100`, `x1k`), which keeps the id count small while making batch cost readable straight off the Cnt / Time / Avg columns. A response that timed out, lost a shard, or reported bulk errors opens a nested zero-duration `OPENSEARCH:query:degraded` / `OPENSEARCH:bulkQuery:errors` marker, whose Cnt is the failure count.
+
+`MAGE_PROFILER_SEARCH=query` records the request body of every search on its span in the `json`
+report, as compact JSON cut at `MAGE_PROFILER_SEARCH_MAXLEN` (default 4000) and charged to the
+`MAGE_PROFILER_SQL_BUDGET`, so four `OPENSEARCH:query (magento2_product_1)` calls in one request can
+be told apart. `meta.search_captured` counts the spans that carry a body. As a cookie or an
+`X-Mage-Profiler-Search` header it passes the same gate as the SQL capture.
 
 ```bash
 # what does a catalogsearch reindex actually spend its time on?
@@ -486,7 +506,7 @@ Magento hides the whole *Developer* section in production mode, so in production
 | Timer Id Filter (PCRE) | `MAGE_PROFILER_FILTER` | none |
 | Print To STDERR On CLI | `MAGE_PROFILER_CLI_STDERR` | Yes |
 
-Instrumentation itself is environment-only: `MAGE_PROFILER_SQL` (`0` off, `operation` for no table names, `query` to capture the statement), `MAGE_PROFILER_REDIS` (**opt-in** — unset means off; `1` for wire commands and their captured command line, `keys` to also put the raw key in the id), `MAGE_PROFILER_LOCK`, `MAGE_PROFILER_FPC`, `MAGE_PROFILER_MAIL`, `MAGE_PROFILER_IMAGE`, `MAGE_PROFILER_QUEUE`, `MAGE_PROFILER_CHECKOUT`, `MAGE_PROFILER_SEARCH` (`0` off, `operation` for no index names), `MAGE_PROFILER_SQL_MAXLEN`, `MAGE_PROFILER_SQL_BUDGET`, `MAGE_PROFILER_MAX_DETAIL`, `MAGE_PROFILER_MAX_IDS`, `MAGE_PROFILER_MAX_SPANS`, `MAGE_PROFILER_REPORT_DIR`, `MAGE_PROFILER_KEEP_DAYS`, `MAGE_PROFILER_KEEP_QUERY`.
+Instrumentation itself is environment-only: `MAGE_PROFILER_SQL` (`0` off, `operation` for no table names, `query` to capture the statement), `MAGE_PROFILER_REDIS` (**opt-in** — unset means off; `1` for wire commands and their captured command line, `keys` to also put the raw key in the id), `MAGE_PROFILER_LOCK`, `MAGE_PROFILER_FPC`, `MAGE_PROFILER_MAIL`, `MAGE_PROFILER_IMAGE`, `MAGE_PROFILER_QUEUE`, `MAGE_PROFILER_CHECKOUT`, `MAGE_PROFILER_SEARCH` (`0` off, `operation` for no index names, `query` to capture the request body), `MAGE_PROFILER_SEARCH_MAXLEN`, `MAGE_PROFILER_SQL_MAXLEN`, `MAGE_PROFILER_SQL_BUDGET`, `MAGE_PROFILER_MAX_DETAIL`, `MAGE_PROFILER_MAX_IDS`, `MAGE_PROFILER_MAX_SPANS`, `MAGE_PROFILER_REPORT_DIR`, `MAGE_PROFILER_KEEP_DAYS`, `MAGE_PROFILER_KEEP_QUERY`.
 
 ## Security
 
