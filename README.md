@@ -135,11 +135,15 @@ bin/magento dev:profiler:status
 bin/magento dev:profiler:disable
 ```
 
-For **REST / GraphQL requests from an API client** such as Postman, send the cookie as a plain request header:
+For **REST / GraphQL requests from an API client** such as Postman, send the cookie as a plain request header,
+or use the `X-Mage-Profiler` header, which takes the same value and passes the same gate:
 
 ```http
 Cookie: MAGE_PROFILER=tabular
+X-Mage-Profiler: json
 ```
+
+A `json` run answers with the file name of its report in the `X-Mage-Profiler-Report` response header.
 
 <div align="center">
 
@@ -210,9 +214,9 @@ report tells you `SQL:SELECT (catalog_product_entity +3)` cost 157 ms but never 
 MAGE_PROFILER=json MAGE_PROFILER_SQL=query bin/magento indexer:reindex
 ```
 
-For a single storefront request, set it as a **second cookie** next to `MAGE_PROFILER` — area flags
-are otherwise read from the environment only, which would turn capture on for every request the
-container serves:
+For a single storefront request, set it as a **second cookie** next to `MAGE_PROFILER`, or as an
+`X-Mage-Profiler-Sql` header — area flags are otherwise read from the environment only, which would
+turn capture on for every request the container serves:
 
 ```
 Cookie: MAGE_PROFILER=json
