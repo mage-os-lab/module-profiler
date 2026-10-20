@@ -9,6 +9,8 @@ namespace MageOS\Profiler\Plugin\Search;
 
 use Magento\OpenSearch\Model\SearchClient;
 use MageOS\Profiler\Model\Instrumentation\Guard;
+use MageOS\Profiler\Model\Instrumentation\QueryCapture;
+use MageOS\Profiler\Model\Profiler\Driver\Timeline;
 use MageOS\Profiler\Model\Instrumentation\Settings;
 use MageOS\Profiler\Model\Instrumentation\Timer;
 use MageOS\Profiler\Model\Instrumentation\TimerId;
@@ -37,6 +39,12 @@ class OpenSearchClientProfiler
     private const MODE_OPERATION = 'operation';
 
     /**
+     * Records the request body of every search on its span, like MAGE_PROFILER_SQL=query does for
+     * statements. Index names stay in the id.
+     */
+    private const MODE_QUERY = 'query';
+
+    /**
      * Bulk actions whose body carries a document line after the action line.
      */
     private const BULK_ACTIONS_WITH_BODY = ['index' => true, 'create' => true, 'update' => true];
@@ -62,17 +70,29 @@ class OpenSearchClientProfiler
     private $settings;
 
     /**
+     * @var QueryCapture
+     */
+    private $capture;
+
+    /**
      * @param Guard $guard
      * @param Timer $timer
      * @param TimerId $timerId
      * @param Settings $settings
+     * @param QueryCapture $capture
      */
-    public function __construct(Guard $guard, Timer $timer, TimerId $timerId, Settings $settings)
-    {
+    public function __construct(
+        Guard $guard,
+        Timer $timer,
+        TimerId $timerId,
+        Settings $settings,
+        QueryCapture $capture
+    ) {
         $this->guard    = $guard;
         $this->timer    = $timer;
         $this->timerId  = $timerId;
         $this->settings = $settings;
+        $this->capture  = $capture;
     }
 
     /**
@@ -92,7 +112,8 @@ class OpenSearchClientProfiler
             static function () use ($proceed, $query) {
                 return $proceed($query);
             },
-            'degraded'
+            'degraded',
+            $this->capturesQuery() ? $this->capture->captureSearch($query['body'] ?? $query) : null
         );
     }
 
@@ -359,7 +380,7 @@ class OpenSearchClientProfiler
      * @param string|null $marker Suffix of the nested marker timer opened when the response is degraded.
      * @return mixed
      */
-    private function measure(string $method, $index, callable $call, ?string $marker = null)
+    private function measure(string $method, $index, callable $call, ?string $marker = null, ?array $tags = null)
     {
         if (!$this->guard->isActive(Settings::AREA_SEARCH)) {
             return $call();
@@ -380,7 +401,18 @@ class OpenSearchClientProfiler
             }
 
             return $result;
-        });
+        }, $tags);
+    }
+
+    /**
+     * Only when a timeline driver consumes the body; the tabular output has no column for it.
+     *
+     * @return bool
+     */
+    private function capturesQuery(): bool
+    {
+        return Timeline::isRecording()
+            && strtolower($this->settings->getString('MAGE_PROFILER_' . Settings::AREA_SEARCH)) === self::MODE_QUERY;
     }
 
     /**
